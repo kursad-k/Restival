@@ -81,6 +81,7 @@ class RESTIVAL_OT_start_server(bpy.types.Operator):
             handle_mesh_uvs,
         )
         from api.traverse import handle_data_root, handle_traverse
+        from api.bpy_search import handle_bpy_search, handle_bpy_search_detail
 
         router = RegexRouter()
         response_writer = HTTPResponseWriter()
@@ -142,6 +143,16 @@ class RESTIVAL_OT_start_server(bpy.types.Operator):
         router.register(
             r"^/api/v1/data/(?P<path>.+)$",
             handle_traverse,
+        )
+
+        # bpy API search (fake-bpy-module stubs)
+        router.register(
+            r"^/api/v1/search/(?P<term>[^/]+)/(?P<id>.+)$",
+            handle_bpy_search_detail,
+        )
+        router.register(
+            r"^/api/v1/search/(?P<term>[^/]+)$",
+            handle_bpy_search,
         )
 
         backend = StdlibHTTPBackend(router, execution_strategy)
