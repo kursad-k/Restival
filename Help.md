@@ -56,12 +56,13 @@ Error response:
 
 ## Route families
 
-The API has two distinct access patterns:
+The API has three distinct access patterns:
 
 | Family | Prefix | Use when |
 |--------|--------|----------|
 | **Structured** | `/api/v1/scenes`, `/api/v1/objects` | You want curated, friendly field names — scene inventory, object data, mesh geometry |
 | **Traversal** | `/api/v1/data/` | You want raw `bpy.data` access — any RNA property, arbitrary depth |
+| **Search** | `/api/v1/search/` | You want to discover Blender Python API symbols — classes, functions, operators — by name or keyword |
 
 `bpy.data` is Blender's root datablock container. Every object, mesh, material, image, scene, node tree, and camera in the file lives here, addressable by type and name, independent of what is linked into any scene.
 
@@ -313,6 +314,32 @@ curl -s http://localhost:2357/api/v1/data/images/MyTexture/size
 
 # Material node tree
 curl -s http://localhost:2357/api/v1/data/materials/Material/node_tree/nodes
+```
+
+---
+
+### `GET /api/v1/search/{term}`
+
+Search the bundled Blender Python API stubs by name or keyword. Searches class names, function names, and docstrings. Returns up to 50 compact results, each with a `detail_url` for the next step.
+
+```bash
+curl -s http://localhost:2357/api/v1/search/gpu
+curl -s http://localhost:2357/api/v1/search/extrude
+curl -s http://localhost:2357/api/v1/search/shader
+```
+
+---
+
+### `GET /api/v1/search/{term}/{id}`
+
+Full detail for a specific symbol found via search. `id` is the dotted Python path returned in `detail_url` from the list response.
+
+Returns for classes: full docstring, all methods (name, params, return type, brief), all properties.  
+Returns for functions: full docstring, parameters with types and defaults, return type.
+
+```bash
+curl -s http://localhost:2357/api/v1/search/gpu/gpu.types.GPUShader
+curl -s http://localhost:2357/api/v1/search/extrude/bpy.ops.mesh.extrude_region
 ```
 
 ---
