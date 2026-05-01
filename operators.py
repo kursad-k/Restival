@@ -82,6 +82,7 @@ class RESTIVAL_OT_start_server(bpy.types.Operator):
         )
         from api.traverse import handle_data_root, handle_traverse
         from api.bpy_search import handle_bpy_search, handle_bpy_search_detail
+        from api.text_files import handle_texts_list, handle_text_detail, handle_text_create
 
         router = RegexRouter()
         response_writer = HTTPResponseWriter()
@@ -153,6 +154,15 @@ class RESTIVAL_OT_start_server(bpy.types.Operator):
         router.register(
             r"^/api/v1/search/(?P<term>[^/]+)$",
             handle_bpy_search,
+        )
+
+        # Text files
+        router.register(r"^/api/v1/texts$", handle_texts_list, "GET")
+        router.register(r"^/api/v1/texts$", handle_text_create, "POST")
+        router.register(
+            r"^/api/v1/texts/(?P<name>[^/]+)$",
+            handle_text_detail,
+            "GET",
         )
 
         backend = StdlibHTTPBackend(router, execution_strategy)

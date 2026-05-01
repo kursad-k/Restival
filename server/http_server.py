@@ -48,18 +48,33 @@ class BlenderAPIHandler(http.server.BaseHTTPRequestHandler):
         finally:
             _connection_semaphore.release()
 
-    def do_GET(self) -> None:  # noqa: N802
+    def _handle_request(self, method: str) -> None:
+        """Common request handling logic for GET and POST."""
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         query = dict(urllib.parse.parse_qsl(parsed.query))
+        body = None
+
+        # Parse JSON body for POST requests
+        if method == "POST":
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length > 0:
+                try:
+                    raw_body = self.rfile.read(content_length)
+                    body = json.loads(raw_body.decode("utf-8"))
+                except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                    _writer.error(self, "BAD_REQUEST", f"Invalid JSON: {exc}", 400)
+                    return
+            else:
+                body = {}
 
         if self.router is None:
             _writer.error(self, "INTERNAL_ERROR", "Router not configured", 500)
             return
 
-        match = self.router.resolve(path)
+        match = self.router.resolve(path, method)
         if match is None:
-            _writer.error(self, "NOT_FOUND", f"No route for {path}", 404)
+            _writer.error(self, "NOT_FOUND", f"No route for {method} {path}", 404)
             return
 
         handler_fn, params = match
@@ -74,10 +89,16 @@ class BlenderAPIHandler(http.server.BaseHTTPRequestHandler):
         t0 = time.monotonic()
 
         try:
-            data = self.execution_strategy.dispatch(
-                lambda: handler_fn(params=params, query=query),
-                timeout=5.0,
-            )
+            if body is not None:
+                data = self.execution_strategy.dispatch(
+                    lambda: handler_fn(params=params, query=query, body=body),
+                    timeout=5.0,
+                )
+            else:
+                data = self.execution_strategy.dispatch(
+                    lambda: handler_fn(params=params, query=query),
+                    timeout=5.0,
+                )
         except ServerBusyError:
             _writer.error(self, "SERVICE_UNAVAILABLE", "Server is busy", 503)
             return
@@ -86,12 +107,12 @@ class BlenderAPIHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Retry-After", "5")
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
-            body = json.dumps({
+            body_response = json.dumps({
                 "data": None,
                 "meta": {},
                 "error": {"code": "TIMEOUT", "message": "Request timed out"},
             }).encode("utf-8")
-            self.wfile.write(body)
+            self.wfile.write(body_response)
             return
         except NotFoundError as exc:
             _writer.error(self, "NOT_FOUND", str(exc), 404)
@@ -116,7 +137,14 @@ class BlenderAPIHandler(http.server.BaseHTTPRequestHandler):
                 elapsed_ms=elapsed_ms,
             )
         else:
-            _writer.success(self, data=data, meta={"elapsed_ms": elapsed_ms})
+            status_code = 201 if method == "POST" else 200
+            _writer.success(self, data=data, meta={"elapsed_ms": elapsed_ms}, status=status_code)
+
+    def do_GET(self) -> None:  # noqa: N802
+        self._handle_request("GET")
+
+    def do_POST(self) -> None:  # noqa: N802
+        self._handle_request("POST")
 
     def log_message(self, fmt: str, *args: Any) -> None:  # noqa: N802
         print(f"[Restival] {self.address_string()} - {fmt % args}")

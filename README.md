@@ -11,9 +11,10 @@ I built it because small models can often understand REST APIs more reliably tha
 
 ## Features
 
-- Read-only REST API for live Blender scene data
+- REST API for live Blender scene data (read + limited write)
 - Works well with local models, tools, and AI agents
 - Inspect scenes, objects, meshes, and file metadata over HTTP
+- Create Python scripts in Blender's text editor via POST
 - Generic `bpy.data` traversal for deeper inspection
 - Simple setup inside Blender with no extra MCP-style wiring
 - Built-in UI panel to start and stop the server
@@ -54,6 +55,11 @@ curl -s http://127.0.0.1:2357/api/v1/scenes/Scene/objects
 curl -s http://127.0.0.1:2357/api/v1/scenes/Scene/objects/Cube
 curl -s http://127.0.0.1:2357/api/v1/scenes/Scene/objects/Cube/mesh
 curl -s http://127.0.0.1:2357/api/v1/data/materials
+
+# Create a Python script in Blender's text editor
+curl -X POST http://127.0.0.1:2357/api/v1/texts \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my_script.py", "content": "import bpy\nprint(\"Hello Blender!\")\n"}'
 ```
 
 If you want the API to describe itself first:

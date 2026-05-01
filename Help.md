@@ -60,7 +60,7 @@ The API has three distinct access patterns:
 
 | Family | Prefix | Use when |
 |--------|--------|----------|
-| **Structured** | `/api/v1/scenes`, `/api/v1/objects` | You want curated, friendly field names — scene inventory, object data, mesh geometry |
+| **Structured** | `/api/v1/scenes`, `/api/v1/objects`, `/api/v1/texts` | You want curated, friendly field names — scene inventory, object data, mesh geometry, text files |
 | **Traversal** | `/api/v1/data/` | You want raw `bpy.data` access — any RNA property, arbitrary depth |
 | **Search** | `/api/v1/search/` | You want to discover Blender Python API symbols — classes, functions, operators — by name or keyword |
 
@@ -344,6 +344,53 @@ curl -s http://localhost:2357/api/v1/search/extrude/bpy.ops.mesh.extrude_region
 
 ---
 
+### `GET /api/v1/texts`
+
+List all text files in Blender's text editor (`bpy.data.texts`).
+
+Returns: Array of text file metadata with `name`, `is_dirty`, `is_modified`, `filepath`, `lines`
+
+```bash
+curl -s http://localhost:2357/api/v1/texts
+```
+
+---
+
+### `GET /api/v1/texts/{name}`
+
+Get content and metadata for a specific text file.
+
+Returns: `name`, `content`, `is_dirty`, `is_modified`, `filepath`, `lines`
+
+```bash
+curl -s http://localhost:2357/api/v1/texts/Text
+curl -s "http://localhost:2357/api/v1/texts/my_script.py"
+```
+
+---
+
+### `POST /api/v1/texts`
+
+Create a new text file in Blender's text editor with the provided content.
+
+**Request body:**
+```json
+{
+  "name": "my_script.py",
+  "content": "import bpy\nprint('Hello from Blender!')\n"
+}
+```
+
+Returns: Created text file metadata with `created: true`
+
+```bash
+curl -s -X POST http://localhost:2357/api/v1/texts \
+  -H "Content-Type: application/json" \
+  -d '{"name": "agent_script.py", "content": "import bpy\nprint(\"Script created by agent\")\n"}'
+```
+
+---
+
 ## Compact key legend (`/data/` responses)
 
 | Key | Meaning |
@@ -359,7 +406,7 @@ curl -s http://localhost:2357/api/v1/search/extrude/bpy.ops.mesh.extrude_region
 
 ## Notes
 
-- All endpoints are **GET only**.
+- Most endpoints are **GET only**. Text file creation uses **POST**.
 - All indices are **0-based**.
 - Object and scene names with spaces must be **URL-encoded** (`%20`).
 - The server binds to `127.0.0.1` by default. Enable network mode in preferences to bind to all interfaces.

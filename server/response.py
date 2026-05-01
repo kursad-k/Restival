@@ -37,9 +37,9 @@ class HTTPResponseWriter:
         handler.end_headers()
         handler.wfile.write(raw)
 
-    def success(self, handler: Any, data: Any, meta: dict | None = None) -> None:
+    def success(self, handler: Any, data: Any, meta: dict | None = None, status: int = 200) -> None:
         body = {"data": data, "meta": meta or {}, "error": None}
-        self._write(handler, 200, body)
+        self._write(handler, status, body)
 
     def error(
         self, handler: Any, code: str, message: str, status: int
