@@ -3,7 +3,7 @@
 Routes:
   GET  /api/v1/texts                — list all text files in bpy.data.texts
   GET  /api/v1/texts/{name}         — get content of a specific text file
-  POST /api/v1/texts                — create a new text file with content
+  POST /api/v1/texts                — create or replace a text file with content
 
 All handlers run on Blender's main thread (dispatched by ExecutionStrategy).
 """
@@ -50,7 +50,7 @@ def handle_text_detail(params: dict, query: dict) -> dict:
 
 
 def handle_text_create(params: dict, query: dict, body: dict) -> dict:
-    """Create a new text file in Blender's text editor.
+    """Create or replace a text file in Blender's text editor.
     
     Expected body:
     {
@@ -78,16 +78,14 @@ def handle_text_create(params: dict, query: dict, body: dict) -> dict:
     if not isinstance(content, str):
         raise BadRequestError("Field 'content' must be a string")
 
-    # Check if text with same name already exists
-    if bpy.data.texts.get(name):
-        raise BadRequestError(f"Text file '{name}' already exists")
+    text = bpy.data.texts.get(name)
+    created = text is None
+    if created:
+        text = bpy.data.texts.new(name)
+    else:
+        text.clear()
 
-    # Create new text datablock
-    text = bpy.data.texts.new(name)
-    
-    # Set content if provided
-    if content:
-        text.from_string(content)
+    text.from_string(content)
 
     return {
         "name": text.name,
@@ -96,5 +94,6 @@ def handle_text_create(params: dict, query: dict, body: dict) -> dict:
         "is_modified": text.is_modified,
         "filepath": text.filepath if text.filepath else None,
         "lines": len(text.lines),
-        "created": True,
+        "created": created,
+        "replaced": not created,
     }

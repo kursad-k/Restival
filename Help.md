@@ -371,7 +371,7 @@ curl -s "http://localhost:2357/api/v1/texts/my_script.py"
 
 ### `POST /api/v1/texts`
 
-Create a new text file in Blender's text editor with the provided content.
+Create a new text file in Blender's text editor with the provided content, or replace the full content of an existing text file with the same name.
 
 **Request body:**
 ```json
@@ -381,13 +381,35 @@ Create a new text file in Blender's text editor with the provided content.
 }
 ```
 
-Returns: Created text file metadata with `created: true`
+Returns: Text file metadata with `created: true` for a new text block, or `replaced: true` when an existing text block was overwritten.
 
 ```bash
 curl -s -X POST http://localhost:2357/api/v1/texts \
   -H "Content-Type: application/json" \
   -d '{"name": "agent_script.py", "content": "import bpy\nprint(\"Script created by agent\")\n"}'
 ```
+
+PowerShell example for multiline scripts on Windows, useful for sending script adds/updates via POST:
+
+```powershell
+$script = @'
+import bpy
+
+print("Script created by agent")
+'@
+
+$body = @{
+  name = "agent_script.py"
+  content = $script
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:2357/api/v1/texts" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+Use `ConvertTo-Json` and `Invoke-RestMethod -Body` on Windows so quotes and newlines are encoded correctly. Temporary JSON files are not required.
 
 ---
 
@@ -406,7 +428,8 @@ curl -s -X POST http://localhost:2357/api/v1/texts \
 
 ## Notes
 
-- Most endpoints are **GET only**. Text file creation uses **POST**.
+- Most endpoints are **GET only**. Text file creation/replacement uses **POST**.
+- `POST /api/v1/texts` writes the full script content. If the text block name already exists, the old content is completely replaced.
 - All indices are **0-based**.
 - Object and scene names with spaces must be **URL-encoded** (`%20`).
 - The server binds to `127.0.0.1` by default. Enable network mode in preferences to bind to all interfaces.
