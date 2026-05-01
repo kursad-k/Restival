@@ -12,6 +12,7 @@ import bpy
 # Module-level singleton — set on start, cleared on stop
 _server_backend = None
 _execution_strategy = None
+_AUTO_START_RETRY_INTERVAL = 0.5
 
 
 class RESTIVAL_OT_copy_rest_url(bpy.types.Operator):
@@ -206,11 +207,45 @@ class RESTIVAL_OT_stop_server(bpy.types.Operator):
         return {"FINISHED"}
 
 
+def _auto_start_server_after_init():
+    """Start server from preferences once Blender has a usable context."""
+    if _server_backend is not None and _server_backend.is_running:
+        return None
+
+    addon = bpy.context.preferences.addons.get(__package__)
+    if addon is None:
+        return None
+
+    prefs = addon.preferences
+    if not getattr(prefs, "auto_start_server", False):
+        return None
+
+    scene = bpy.context.scene
+    if scene is None:
+        return _AUTO_START_RETRY_INTERVAL
+
+    try:
+        bpy.ops.restival.start_server()
+    except Exception as exc:
+        print(f"Restival auto start failed: {exc}")
+
+    return None
+
+
 def register():
     bpy.types.Scene.restival_running = bpy.props.BoolProperty(
         name="Restival Running",
         default=False,
+        options={"SKIP_SAVE"},
     )
+    for scene in bpy.data.scenes:
+        scene.restival_running = False
+
+    if not bpy.app.timers.is_registered(_auto_start_server_after_init):
+        bpy.app.timers.register(
+            _auto_start_server_after_init,
+            first_interval=_AUTO_START_RETRY_INTERVAL,
+        )
 
 
 def unregister():
@@ -222,6 +257,8 @@ def unregister():
     if _execution_strategy is not None:
         _execution_strategy.unregister()
         _execution_strategy = None
+    if bpy.app.timers.is_registered(_auto_start_server_after_init):
+        bpy.app.timers.unregister(_auto_start_server_after_init)
 
     if hasattr(bpy.types.Scene, "restival_running"):
         del bpy.types.Scene.restival_running

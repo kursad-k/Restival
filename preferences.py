@@ -28,7 +28,14 @@ class RESTIVAL_AddonPreferences(bpy.types.AddonPreferences):
         default=False,
     )  # type: ignore[assignment]
 
+    auto_start_server: bpy.props.BoolProperty(
+        name="Auto Start Server",
+        description="Start the REST API server automatically after Blender finishes initializing",
+        default=False,
+    )  # type: ignore[assignment]
+
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         layout.prop(self, "port")
         layout.prop(self, "network_mode")
+        layout.prop(self, "auto_start_server")
