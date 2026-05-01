@@ -12,6 +12,23 @@ from __future__ import annotations
 from core.errors import BadRequestError, NotFoundError
 
 
+def _activate_existing_text_editor(bpy_module, text) -> bool:
+    """Make text current in the first existing Text Editor area."""
+    window_manager = getattr(bpy_module.context, "window_manager", None)
+    if window_manager is None:
+        return False
+
+    for window in window_manager.windows:
+        screen = getattr(window, "screen", None)
+        if screen is None:
+            continue
+        for area in screen.areas:
+            if area.type == "TEXT_EDITOR":
+                area.spaces.active.text = text
+                return True
+    return False
+
+
 def handle_texts_list(params: dict, query: dict) -> dict:
     """Return list of all text files in bpy.data.texts."""
     import bpy  # noqa: PLC0415
@@ -86,6 +103,7 @@ def handle_text_create(params: dict, query: dict, body: dict) -> dict:
         text.clear()
 
     text.from_string(content)
+    activated = _activate_existing_text_editor(bpy, text)
 
     return {
         "name": text.name,
@@ -96,4 +114,5 @@ def handle_text_create(params: dict, query: dict, body: dict) -> dict:
         "lines": len(text.lines),
         "created": created,
         "replaced": not created,
+        "activated": activated,
     }

@@ -1,0 +1,1 @@
+- [ ] Add screenshot functionality for vision
