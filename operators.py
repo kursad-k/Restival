@@ -238,8 +238,9 @@ def register():
         default=False,
         options={"SKIP_SAVE"},
     )
-    for scene in bpy.data.scenes:
-        scene.restival_running = False
+    # bpy.data is restricted during register(); default=False already covers this.
+    # for scene in bpy.data.scenes:
+    #     scene.restival_running = False
 
     if not bpy.app.timers.is_registered(_auto_start_server_after_init):
         bpy.app.timers.register(
