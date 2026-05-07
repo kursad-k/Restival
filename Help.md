@@ -1,6 +1,6 @@
 # Restival — Blender REST API
 
-Restival embeds a read-only HTTP server inside Blender. It exposes live scene data as JSON over a local REST API. Default port: **2357**.
+Restival embeds a HTTP server inside Blender. It exposes live scene data as JSON over a local REST API. Default port: **2357**.
 
 Start/stop the server from the Restival panel in Blender's Scene Properties or N-panel.
 
