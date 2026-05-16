@@ -63,7 +63,7 @@ def iter_submodules(path, package_name):
         yield importlib.import_module("." + name, package_name)
 
 
-_EXCLUDED_PACKAGES = {"tests", "specs", "__pycache__"}
+_EXCLUDED_PACKAGES = {"tests", "specs", "__pycache__", "auto_load"}
 
 
 def iter_submodule_names(path, root=""):
