@@ -7,7 +7,7 @@ I built it because small models can often understand REST APIs more reliably tha
 <p align="center">
   <img src="img/ui.png" alt="Restival UI" width="49%" />
   <img src="img/running.png" alt="Restival Running" width="49%" />
-  <img src="img/agent.png" alt="Restival Running" width="49%" />
+  <img src="img/agent.png" alt="Restival Running" width="75%" />
 </p>
 
 ## Features
