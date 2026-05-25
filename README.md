@@ -5,7 +5,7 @@ Restival is a Blender addon that exposes your scene as a live REST API. It lets 
 I built it because small models can often understand REST APIs more reliably than complex local MCP setups. In Blender, MCP-based workflows can add friction, create stale connections, and raise security concerns when arbitrary Python execution is involved. Restival keeps things simple: one addon, a clear read/write boundary, and an explicit opt-in toggle for script execution.
 
 <p align="center">
-  <img src="img/UI2.png" alt="Restival UI" width="49%" />
+  <img src="img/ui.png" alt="Restival UI" width="49%" />
   <img src="img/running.png" alt="Restival Running" width="49%" />
   <img src="img/agent.png" alt="Restival Running" width="100%" />
 </p>
