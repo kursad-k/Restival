@@ -105,7 +105,9 @@ curl -s http://localhost:2357/api/v1
 
 Server liveness. Safe to poll. Runs without touching the scene.
 
-Returns: `status`, `blender_version`, `uptime_seconds`, `is_saved`, `active_scene`
+Returns: `status`, `blender_version`, `uptime_seconds`, `is_saved`, `active_scene`, `script_execution_allowed`
+
+Check `script_execution_allowed` before attempting `POST /api/v1/texts/{name}/run`. If it is `false`, the run endpoint will return a `400 BAD_REQUEST` and the script will not execute. The user must enable **Allow Script Execution** in the Restival N-panel to permit remote execution.
 
 ```bash
 curl -s http://localhost:2357/api/v1/health

@@ -34,6 +34,15 @@ class RESTIVAL_AddonPreferences(bpy.types.AddonPreferences):
         default=False,
     )  # type: ignore[assignment]
 
+    allow_script_execution: bpy.props.BoolProperty(
+        name="Allow Script Execution",
+        description=(
+            "Allow POST /api/v1/texts/{name}/run to execute Python scripts via the REST API. "
+            "Disable to block remote script execution."
+        ),
+        default=False,
+    )  # type: ignore[assignment]
+
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         layout.prop(self, "port")

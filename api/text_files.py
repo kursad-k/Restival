@@ -15,6 +15,7 @@ import io
 import traceback
 
 from core.errors import BadRequestError, NotFoundError
+from core.prefs import get_addon_prefs
 
 
 def _activate_existing_text_editor(bpy_module, text) -> bool:
@@ -78,6 +79,12 @@ def handle_text_run(params: dict, query: dict, body: dict) -> dict:
     captured and returned in the response. Exceptions are caught and returned
     as a formatted traceback in the `error` field — they do not raise a 500.
     """
+    prefs = get_addon_prefs()
+    if prefs is None or not prefs.allow_script_execution:
+        raise BadRequestError(
+            "Script execution is disabled. Enable 'Allow Script Execution' in the Restival N-panel."
+        )
+
     import bpy  # noqa: PLC0415
 
     name: str = params.get("name", "")

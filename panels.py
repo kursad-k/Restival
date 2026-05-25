@@ -69,6 +69,9 @@ class RESTIVAL_PT_main(bpy.types.Panel):
         net_row.enabled = not is_running
         net_row.prop(prefs, "network_mode")
 
+        # --- Script execution toggle (can be changed while running) ---
+        layout.prop(prefs, "allow_script_execution")
+
         # --- Local IPs listing ---
         if not is_running:
             box = layout.box()
