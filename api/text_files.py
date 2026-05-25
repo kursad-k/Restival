@@ -4,10 +4,15 @@ Routes:
   GET  /api/v1/texts                — list all text files in bpy.data.texts
   GET  /api/v1/texts/{name}         — get content of a specific text file
   POST /api/v1/texts                — create or replace a text file with content
+  POST /api/v1/texts/{name}/run     — execute a text block, capturing stdout/stderr
 
 All handlers run on Blender's main thread (dispatched by ExecutionStrategy).
 """
 from __future__ import annotations
+
+import contextlib
+import io
+import traceback
 
 from core.errors import BadRequestError, NotFoundError
 
@@ -63,6 +68,42 @@ def handle_text_detail(params: dict, query: dict) -> dict:
         "is_modified": text.is_modified,
         "filepath": text.filepath if text.filepath else None,
         "lines": len(text.lines),
+    }
+
+
+def handle_text_run(params: dict, query: dict, body: dict) -> dict:
+    """Execute a text block in bpy.data.texts by name.
+
+    Runs the script on Blender's main thread via exec(). stdout and stderr are
+    captured and returned in the response. Exceptions are caught and returned
+    as a formatted traceback in the `error` field — they do not raise a 500.
+    """
+    import bpy  # noqa: PLC0415
+
+    name: str = params.get("name", "")
+    text = bpy.data.texts.get(name)
+    if text is None:
+        raise NotFoundError(f"Text file '{name}' not found")
+
+    code = text.as_string()
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    exec_error: str | None = None
+
+    namespace: dict = {"__name__": "__main__", "__file__": name}
+    try:
+        compiled = compile(code, name, "exec")
+        with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stderr(stderr_buf):
+            exec(compiled, namespace)  # noqa: S102
+    except Exception:  # noqa: BLE001
+        exec_error = traceback.format_exc()
+
+    return {
+        "name": name,
+        "ok": exec_error is None,
+        "stdout": stdout_buf.getvalue(),
+        "stderr": stderr_buf.getvalue(),
+        "error": exec_error,
     }
 
 

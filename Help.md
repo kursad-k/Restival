@@ -413,6 +413,39 @@ Use `ConvertTo-Json` and `Invoke-RestMethod -Body` on Windows so quotes and newl
 
 ---
 
+### `POST /api/v1/texts/{name}/run`
+
+Execute a text block that already exists in Blender's text editor. The script runs on Blender's main thread. `stdout` and `stderr` are captured and returned. Exceptions are caught and returned in the `error` field rather than producing a 500 — check the `ok` field first.
+
+**Agent workflow — create then run:**
+1. `POST /api/v1/texts` with `{"name": "agent_script.py", "content": "..."}` to write the script
+2. `POST /api/v1/texts/agent_script.py/run` to execute it and read back `stdout` / `error`
+
+Returns: `name`, `ok` (bool), `stdout`, `stderr`, `error` (traceback string or null)
+
+```bash
+# Step 1 — write the script
+curl -s -X POST http://localhost:2357/api/v1/texts \
+  -H "Content-Type: application/json" \
+  -d '{"name": "agent_script.py", "content": "import bpy\nprint(bpy.context.scene.name)\n"}'
+
+# Step 2 — run it
+curl -s -X POST http://localhost:2357/api/v1/texts/agent_script.py/run
+```
+
+PowerShell:
+
+```powershell
+# Step 1 — write the script
+$body = @{ name = "agent_script.py"; content = "import bpy`nprint(bpy.context.scene.name)`n" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:2357/api/v1/texts" -Method Post -ContentType "application/json" -Body $body
+
+# Step 2 — run it
+Invoke-RestMethod -Uri "http://localhost:2357/api/v1/texts/agent_script.py/run" -Method Post
+```
+
+---
+
 ## Compact key legend (`/data/` responses)
 
 | Key | Meaning |
