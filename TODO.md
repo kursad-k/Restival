@@ -1,1 +1,13 @@
-- [ ] Add screenshot functionality for vision
+- [ ] **`bpy_ops` Execution Handler**: Enable standard Blender operator execution 
+- [ ] **Viewport Image Capture**: `/viewport/screenshot` endpoint for VLM-based visual feedback loops.
+- [ ] **Material & Texture CRUD**: API to manage `bpy.data.materials` and `bpy.data.images` for styling and texturing.
+- [ ] **Animation & Keyframing API**: Timeline management, keyframe setting, and F-Curve evaluation.
+- [ ] **Asset Import Pipeline**: `/import` handler for glTF/OBJ/FBX/STL uploads with structured object returns.
+- [ ] **Live WebSocket State Stream**: Real-time viewport and operator updates to replace current polling.
+- [ ] **Viewport Screenshot & Orthographic Views**: `/viewport/screenshot` with fixed camera angles for consistent VLM feedback.
+- [ ] **Raycasting & Spatial Queries**: `/tools/raycast` for selecting/highlighting objects via 3D coords or screen UVs.
+- [ ] **Scene Snapshots & Rollback**: Save/restore `.blend` states before risky operations for safe agentic exploration.
+- [ ] **Selection & Direct Transform API**: Set active selection and apply `location`/`rotation`/`scale` without text blocks.
+- [ ] **Asset Upload/Download Bridge**: Multipart upload for references/textures and secure download for final exports.
+- [ ] **Camera Framing & Viewport Sync**: Programmatically frame objects or adjust camera state for aligned inspections.
+- [ ] **Async Operation Status**: Return `task_id` for heavy ops (subdivide/export) with polling endpoint for completion tracking.
