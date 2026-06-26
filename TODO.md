@@ -1,3 +1,5 @@
+- [ ] Agentic code auditing
+- [ ] Goose integration
 - [ ] **`bpy_ops` Execution Handler**: Enable standard Blender operator execution 
 - [ ] **Viewport Image Capture**: `/viewport/screenshot` endpoint for VLM-based visual feedback loops.
 - [ ] **Material & Texture CRUD**: API to manage `bpy.data.materials` and `bpy.data.images` for styling and texturing.
