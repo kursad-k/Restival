@@ -64,20 +64,31 @@ class TimerExecutionStrategy:
         """Register the drain loop with bpy.app.timers."""
         import bpy  # noqa: PLC0415 — imported at call time to allow unit testing
 
+        if self.is_registered:
+            return
+
         def _drain_loop() -> float:
             return self._drain_once()
 
         self._drain_fn = _drain_loop
-        bpy.app.timers.register(_drain_loop, first_interval=0.0)
+        bpy.app.timers.register(_drain_loop, first_interval=0.0, persistent=True)
 
     def unregister(self) -> None:
         """Unregister the drain loop if it is still registered."""
         import bpy  # noqa: PLC0415
 
-        if self._drain_fn is not None and bpy.app.timers.is_registered(
-            self._drain_fn
-        ):
+        if self.is_registered:
             bpy.app.timers.unregister(self._drain_fn)
+
+    @property
+    def is_registered(self) -> bool:
+        """Return whether the drain loop is currently registered."""
+        import bpy  # noqa: PLC0415
+
+        return bool(
+            self._drain_fn is not None
+            and bpy.app.timers.is_registered(self._drain_fn)
+        )
 
     # ------------------------------------------------------------------
     # Internal — called by the timer; also callable directly in tests

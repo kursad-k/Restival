@@ -171,6 +171,14 @@ class StdlibHTTPBackend:
     def is_running(self) -> bool:
         return self._server is not None
 
+    @property
+    def bound_address(self) -> tuple[str, int] | None:
+        if self._server is None:
+            return None
+
+        host, port = self._server.server_address[:2]
+        return str(host), int(port)
+
     def start(self, host: str, port: int) -> None:
         """Bind and start serving in a daemon thread."""
         # Inject router + strategy into handler class via a subclass to avoid

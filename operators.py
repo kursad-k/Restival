@@ -8,11 +8,109 @@ Scene property `restival_running` (BoolProperty) is registered/unregistered
 here so panels.py can read run state without importing this module directly.
 """
 import bpy
+import json
+import os
+from pathlib import Path
+import urllib.error
+import urllib.request
+
+try:
+    from bpy.app.handlers import persistent
+except Exception:  # outside Blender or with a minimal bpy test stub
+    def persistent(fn):
+        return fn
 
 # Module-level singleton — set on start, cleared on stop
 _server_backend = None
 _execution_strategy = None
 _AUTO_START_RETRY_INTERVAL = 0.5
+_PORT_CONFLICT_INCREMENT_LIMIT = 25
+_last_error = ""
+_PORT_PROBE_TIMEOUT = 0.25
+
+
+def is_server_running() -> bool:
+    """Return the actual backend state used by the UI."""
+    return bool(_server_backend is not None and _server_backend.is_running)
+
+
+def is_execution_ready() -> bool:
+    """Return whether the server can dispatch work onto Blender's main thread."""
+    return bool(
+        _execution_strategy is not None
+        and getattr(_execution_strategy, "is_registered", False)
+    )
+
+
+def get_last_error() -> str:
+    """Return the last server lifecycle error for display."""
+    return _last_error
+
+
+def get_diagnostics() -> dict:
+    """Return runtime diagnostics for distinguishing loaded addon copies."""
+    bound_address = None
+    if _server_backend is not None:
+        bound_address = getattr(_server_backend, "bound_address", None)
+
+    return {
+        "operators_file": str(Path(__file__).resolve()),
+        "process_id": os.getpid(),
+        "blend_file": bpy.data.filepath,
+        "fallback_limit": _PORT_CONFLICT_INCREMENT_LIMIT,
+        "server_running": is_server_running(),
+        "execution_ready": is_execution_ready(),
+        "bound_address": bound_address,
+        "last_error": _last_error,
+    }
+
+
+def _port_has_restival(port: int) -> bool:
+    """Return whether a local Restival server already answers on *port*."""
+    url = f"http://127.0.0.1:{port}/api/v1/health"
+    try:
+        with urllib.request.urlopen(url, timeout=_PORT_PROBE_TIMEOUT) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (
+        OSError,
+        TimeoutError,
+        urllib.error.URLError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+    ):
+        return False
+
+    data = payload.get("data") if isinstance(payload, dict) else None
+    return isinstance(data, dict) and data.get("status") == "ok"
+
+
+def _set_last_error(message: str = "") -> None:
+    global _last_error
+    _last_error = message
+
+
+def _set_scene_running_desired(
+    context: bpy.types.Context | None,
+    desired: bool,
+) -> None:
+    scene = getattr(context, "scene", None) if context is not None else None
+    if scene is None:
+        scene = bpy.context.scene
+
+    if scene is not None and hasattr(scene, "restival_running"):
+        scene.restival_running = desired
+
+
+def _stop_server_backend() -> None:
+    global _server_backend, _execution_strategy
+
+    if _server_backend is not None:
+        _server_backend.stop()
+        _server_backend = None
+
+    if _execution_strategy is not None:
+        _execution_strategy.unregister()
+        _execution_strategy = None
 
 
 class RESTIVAL_OT_copy_rest_url(bpy.types.Operator):
@@ -58,12 +156,27 @@ class RESTIVAL_OT_start_server(bpy.types.Operator):
     def execute(self, context: bpy.types.Context):
         global _server_backend, _execution_strategy
 
+        if is_server_running():
+            if not is_execution_ready() and _execution_strategy is not None:
+                try:
+                    _execution_strategy.register()
+                except Exception as exc:  # noqa: BLE001
+                    message = f"Restival server dispatcher failed to start: {exc}"
+                    _set_last_error(message)
+                    _stop_server_backend()
+                    _set_scene_running_desired(context, False)
+                    self.report({"ERROR"}, message)
+                    return {"CANCELLED"}
+
+            _set_last_error("")
+            _set_scene_running_desired(context, True)
+            return {"FINISHED"}
+
         prefs = context.preferences.addons[__package__].preferences
         port: int = prefs.port
         host: str = "0.0.0.0" if prefs.network_mode else "127.0.0.1"
 
         from server.router import RegexRouter
-        from server.response import HTTPResponseWriter
         from server.http_server import StdlibHTTPBackend
         from execution.timer_strategy import TimerExecutionStrategy
         from api.guide import handle_guide
@@ -88,9 +201,6 @@ class RESTIVAL_OT_start_server(bpy.types.Operator):
         from api.text_files import handle_texts_list, handle_text_detail, handle_text_create, handle_text_run
 
         router = RegexRouter()
-        response_writer = HTTPResponseWriter()
-        execution_strategy = TimerExecutionStrategy()
-
         # Guide
         router.register(r"^/api/v1/?$", handle_guide)
 
@@ -173,22 +283,56 @@ class RESTIVAL_OT_start_server(bpy.types.Operator):
             "POST",
         )
 
-        backend = StdlibHTTPBackend(router, execution_strategy)
+        max_port = min(65535, port + _PORT_CONFLICT_INCREMENT_LIMIT)
+        last_bind_error: OSError | None = None
+        backend = None
 
-        try:
-            execution_strategy.register()
-            backend.start(host, port)
-        except OSError:
-            execution_strategy.unregister()
-            self.report(
-                {"ERROR"},
-                f"Port {port} is already in use — change port in addon preferences",
+        for candidate_port in range(port, max_port + 1):
+            if _port_has_restival(candidate_port):
+                continue
+
+            execution_strategy = TimerExecutionStrategy()
+            backend = StdlibHTTPBackend(router, execution_strategy)
+
+            try:
+                execution_strategy.register()
+                backend.start(host, candidate_port)
+            except OSError as exc:
+                execution_strategy.unregister()
+                last_bind_error = exc
+                backend = None
+                continue
+            except Exception as exc:  # noqa: BLE001
+                execution_strategy.unregister()
+                message = f"Restival server failed to start: {exc}"
+                _set_last_error(message)
+                _set_scene_running_desired(context, False)
+                self.report({"ERROR"}, message)
+                return {"CANCELLED"}
+
+            if candidate_port != port:
+                prefs.port = candidate_port
+                self.report(
+                    {"WARNING"},
+                    f"Port {port} was unavailable; Restival started on {candidate_port}",
+                )
+            break
+        else:
+            message = (
+                f"Ports {port}-{max_port} are unavailable — change port in addon preferences"
             )
+            if last_bind_error is not None:
+                _set_last_error(f"{message}: {last_bind_error}")
+            else:
+                _set_last_error(message)
+            _set_scene_running_desired(context, False)
+            self.report({"ERROR"}, message)
             return {"CANCELLED"}
 
         _server_backend = backend
         _execution_strategy = execution_strategy
-        context.scene.restival_running = True
+        _set_last_error("")
+        _set_scene_running_desired(context, True)
         return {"FINISHED"}
 
 
@@ -198,22 +342,14 @@ class RESTIVAL_OT_stop_server(bpy.types.Operator):
     bl_description = "Stop the Restival HTTP REST API server"
 
     def execute(self, context: bpy.types.Context):
-        global _server_backend, _execution_strategy
-
-        if _server_backend is not None:
-            _server_backend.stop()
-            _server_backend = None
-
-        if _execution_strategy is not None:
-            _execution_strategy.unregister()
-            _execution_strategy = None
-
-        context.scene.restival_running = False
+        _stop_server_backend()
+        _set_last_error("")
+        _set_scene_running_desired(context, False)
         return {"FINISHED"}
 
 
 def _auto_start_server_after_init():
-    """Start server from preferences once Blender has a usable context."""
+    """Start server when preferences or saved scene state request it."""
     if _server_backend is not None and _server_backend.is_running:
         return None
 
@@ -222,26 +358,48 @@ def _auto_start_server_after_init():
         return None
 
     prefs = addon.preferences
-    if not getattr(prefs, "auto_start_server", False):
-        return None
-
     scene = bpy.context.scene
     if scene is None:
         return _AUTO_START_RETRY_INTERVAL
 
+    scene_wants_running = bool(getattr(scene, "restival_running", False))
+    prefs_wants_running = bool(getattr(prefs, "auto_start_server", False))
+    if not scene_wants_running and not prefs_wants_running:
+        return None
+
     try:
         bpy.ops.restival.start_server()
     except Exception as exc:
-        print(f"Restival auto start failed: {exc}")
+        message = f"Restival auto start failed: {exc}"
+        _set_last_error(message)
+        _set_scene_running_desired(bpy.context, False)
+        print(message)
 
     return None
+
+
+@persistent
+def _restival_load_pre(_filepath):
+    """Stop the old file's backend before Blender replaces scene data."""
+    _stop_server_backend()
+
+
+@persistent
+def _restival_load_post(_filepath):
+    """Honor saved scene state after a new file is loaded."""
+    _set_last_error("")
+    if not bpy.app.timers.is_registered(_auto_start_server_after_init):
+        bpy.app.timers.register(
+            _auto_start_server_after_init,
+            first_interval=_AUTO_START_RETRY_INTERVAL,
+            persistent=True,
+        )
 
 
 def register():
     bpy.types.Scene.restival_running = bpy.props.BoolProperty(
         name="Restival Running",
         default=False,
-        options={"SKIP_SAVE"},
     )
     # bpy.data is restricted during register(); default=False already covers this.
     # for scene in bpy.data.scenes:
@@ -251,7 +409,13 @@ def register():
         bpy.app.timers.register(
             _auto_start_server_after_init,
             first_interval=_AUTO_START_RETRY_INTERVAL,
+            persistent=True,
         )
+
+    if _restival_load_pre not in bpy.app.handlers.load_pre:
+        bpy.app.handlers.load_pre.append(_restival_load_pre)
+    if _restival_load_post not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(_restival_load_post)
 
 
 def unregister():
@@ -265,6 +429,10 @@ def unregister():
         _execution_strategy = None
     if bpy.app.timers.is_registered(_auto_start_server_after_init):
         bpy.app.timers.unregister(_auto_start_server_after_init)
+    if _restival_load_pre in bpy.app.handlers.load_pre:
+        bpy.app.handlers.load_pre.remove(_restival_load_pre)
+    if _restival_load_post in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(_restival_load_post)
 
     if hasattr(bpy.types.Scene, "restival_running"):
         del bpy.types.Scene.restival_running

@@ -1,11 +1,11 @@
 """panels.py — Restival N-panel in 3D Viewport sidebar.
 
 Registered automatically by auto_load.py.
-Reads `context.scene.restival_running` (set by operators.py) to determine
-display state — no direct import of server modules (avoids circular deps).
+Shows saved scene intent alongside the actual backend state.
 """
 import bpy
 from core.network import get_local_ips
+from . import operators
 
 
 def _rest_api_url(ip: str, port: int) -> str:
@@ -35,16 +35,40 @@ class RESTIVAL_PT_main(bpy.types.Panel):
     def draw(self, context: bpy.types.Context) -> None:
         layout = self.layout
         prefs = context.preferences.addons[__package__].preferences
-        is_running: bool = getattr(context.scene, "restival_running", False)
+        is_running: bool = operators.is_server_running()
+        wants_running: bool = bool(getattr(context.scene, "restival_running", False))
+        lifecycle_error: str = operators.get_last_error()
         port: int = prefs.port
         network_mode: bool = prefs.network_mode
+        diagnostics: dict = operators.get_diagnostics()
+        bound_address = diagnostics.get("bound_address")
+        active_port: int = bound_address[1] if bound_address else port
 
         # --- Status row ---
         status_row = layout.row()
         if is_running:
             status_row.label(text="RUNNING", icon="CHECKBOX_HLT")
+        elif wants_running and lifecycle_error:
+            status_row.label(text="ERROR", icon="ERROR")
+        elif wants_running:
+            status_row.label(text="STARTING", icon="TIME")
         else:
             status_row.label(text="STOPPED", icon="CHECKBOX_DEHLT")
+
+        if lifecycle_error:
+            box = layout.box()
+            box.label(text=lifecycle_error, icon="ERROR")
+
+        debug_box = layout.box()
+        debug_box.label(text="Diagnostics", icon="INFO")
+        debug_box.label(text=f"PID: {diagnostics['process_id']}")
+        debug_box.label(text=f"Port setting: {port}")
+        debug_box.label(text=f"Bound: {bound_address}")
+        debug_box.label(text=f"Fallback limit: {diagnostics['fallback_limit']}")
+        debug_box.label(text=f"Backend: {diagnostics['server_running']}")
+        debug_box.label(text=f"Dispatcher: {diagnostics['execution_ready']}")
+        debug_box.label(text=f"File: {diagnostics['blend_file']}")
+        debug_box.label(text=f"Loaded: {diagnostics['operators_file']}")
 
         # --- Active URL(s) when running ---
         if is_running:
@@ -53,11 +77,11 @@ class RESTIVAL_PT_main(bpy.types.Panel):
             if network_mode:
                 # Show all local IPs as active URLs
                 for ip in local_ips:
-                    url = _rest_api_url(ip, port)
-                    _draw_copy_row(layout, f"{ip}:{port}/api/v1", url, icon="WORLD")
+                    url = _rest_api_url(ip, active_port)
+                    _draw_copy_row(layout, f"{ip}:{active_port}/api/v1", url, icon="WORLD")
             else:
-                url = _rest_api_url("127.0.0.1", port)
-                _draw_copy_row(layout, f"127.0.0.1:{port}/api/v1", url, icon="WORLD")
+                url = _rest_api_url("127.0.0.1", active_port)
+                _draw_copy_row(layout, f"127.0.0.1:{active_port}/api/v1", url, icon="WORLD")
 
         # --- Port field (read-only when running) ---
         port_row = layout.row()

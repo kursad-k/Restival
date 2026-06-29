@@ -123,6 +123,7 @@ Thumbs.db
 .specs
 specs
 .codex
-CLAUDE.mdresearch
 research/
+research
+CLAUDE.md
 AGENTS.md
