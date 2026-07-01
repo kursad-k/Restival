@@ -138,7 +138,9 @@ class RESTIVAL_OT_copy_rest_url(bpy.types.Operator):
                 f"- Scene-scoped routes: {self.url}/scenes/{{scene}}/objects/{{name}}\n"
                 f"- Mesh data: append /mesh, /mesh/verts, /mesh/edges, /mesh/faces, /mesh/uvs\n"
                 f"- Generic traversal: {self.url}/data/{{path}} (mirrors bpy.data)\n"
-                f"- Discovery: {self.url}/objects lists all objects; {self.url}/scenes lists all scenes"
+                f"- Discovery: {self.url}/objects lists all objects; {self.url}/scenes lists all scenes\n\n"
+                f"Note: if you are behind a proxy, bypass it for these local calls with "
+                f"curl -s --noproxy '*' {self.url}"
             )
             self.report({"INFO"}, f"Copied agent prompt for {self.url}")
         else:
